@@ -2,6 +2,7 @@
 ;;; UTILITIES ;;;
 ;;;;;;;;;;;;;;;;;
 
+
 (defun fold (function initial-value list)
   "Convenience function for left-fold."
   (reduce function list :initial-value initial-value))

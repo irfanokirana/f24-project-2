@@ -71,6 +71,10 @@ If LIST already contains ELEMENT, LIST is returned unchanged"
       (second exp) ; avoid the double negation
       `(not ,exp)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Part 0: Conversion to CNF ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -123,20 +127,38 @@ If LIST already contains ELEMENT, LIST is returned unchanged"
                    (case op
                      (:implies
                       (destructuring-bind (a b) args
-                        (TODO 'exp->nnf-implies)))
+                        (if truth 
+                          ;; (list `or (visit a (not truth)) (visit b truth))
+                          ;; (list `and (visit a (not truth)) (visit b truth))
+                          `(or ,(visit a (not t)) ,(visit b t))
+                          `(and ,(visit a t) ,(visit b (not t)))
+                        )
+                      ))
                      (:xor
                       (destructuring-bind (a b) args
-                        (TODO 'exp->nnf-xor)))
+                        (if truth 
+                          `(and (or ,(visit a t) ,(visit b t)) (or ,(visit a (not t)) , (visit b (not t))))
+                          `(or (and ,(visit a (not t)) ,(visit b (not t))) (and ,(visit a t) , (visit b t))))
+                      ))
                      (:iff
                       (destructuring-bind (a b) args
-                        (TODO 'exp->nnf-iff)))
+                        (if truth 
+                          `(and (or ,(visit a t) ,(visit b (not t))) (or ,(visit b t) ,(visit a (not t))))
+                          `(or (and ,(visit a t) ,(visit b (not t))) (and ,(visit b t) ,(visit a (not t)))))
+                        ))
                      (not
                       (assert (and args (null (cdr args))))
                       (visit (car args) (not truth)))
                      (and
-                      (TODO 'exp->nnf-and))
+                      (if truth
+                          `(and ,@(mapcar (lambda (arg) (visit arg t)) args))
+                          `(or ,@(mapcar (lambda (arg) (visit arg (not t))) args)))
+                      )
                      (or
-                      (TODO 'exp->nnf-or))
+                      (if truth
+                          `(or ,@(mapcar (lambda (arg) (visit arg t)) args))
+                          `(and ,@(mapcar (lambda (arg) (visit arg (not t))) args)))
+                      )
                      (otherwise
                       (base e truth)))))))
 
@@ -252,8 +274,10 @@ That is: T"
 (defun %dist-or-and-1 (literals and-exp)
   (assert (every #'lit-p literals))
   (assert (cnf-p and-exp))
-  `(or ,@literals ,and-exp)
-  (TODO '%dist-or-and-1))
+  (let ((clauses (cdr and-exp)))
+    (cons 'and (mapcar #'(lambda (clause) `(or ,@literals ,@(cdr clause))) clauses))
+  )
+)
 
 ;; Distribute OR over two AND expressions:
 ;;
@@ -261,11 +285,20 @@ That is: T"
 ;;     (and (or ...) (or ...) ...))
 ;;
 ;; The result is in conjunctive normal form
+;; (defun %dist-or-and-and (and-exp-1 and-exp-2)
+;;   (assert (cnf-p and-exp-1))
+;;   (assert (cnf-p and-exp-2))
+;;   `(or ,and-exp-1 ,and-exp-2)
+;;   (TODO '%dist-or-and-and))
+
 (defun %dist-or-and-and (and-exp-1 and-exp-2)
   (assert (cnf-p and-exp-1))
   (assert (cnf-p and-exp-2))
-  `(or ,and-exp-1 ,and-exp-2)
-  (TODO '%dist-or-and-and))
+  (let ((output
+         (reduce #'nconc
+                 (mapcar (lambda (x) (mapcar (lambda (l) `(,@x ,@(cdr l))) (cdr and-exp-2))) (cdr and-exp-1))
+                 :initial-value '()))) ;; reduce is essentially a fold, nconc is appending the list to output, and set the initial value to empty list '()
+    `(and ,@output))) ;; and the result of output to get cnf
 
 ;; Distribute n-ary OR over the AND arguments:
 ;;
@@ -346,102 +379,106 @@ That is: T"
   "Convert an expression to conjunctive normal form."
   (nnf->cnf (exp->nnf e)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Part 1: DAVIS-PUTNAM-LOGEMANN-LOVELAND (DPLL) ;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun check-bindings (maxterms bindings)
-  "Evaluate whether bindings satisify the maxterms.
-Returns: (OR t nil)"
-  (assert (every #'maxterm-p maxterms))
-  (assert (every #'lit-p bindings))
-  (every (lambda (maxterm)
-           (some (lambda (arg)
-                   (find arg bindings :test #'equal))
-                 (cdr maxterm)))
-         maxterms))
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; ;;; Part 1: DAVIS-PUTNAM-LOGEMANN-LOVELAND (DPLL) ;;;
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun maxterm-bind (maxterm literal)
-"Bind a literal in maxterm.
-Returns: new-maxterm"
-  (assert (maxterm-p maxterm))
-  (assert (lit-p literal))
-  (let ((args (cdr maxterm)))
-    (or (some (lambda (x) (equal x literal)) args)
-        `(or ,@(remove (not-exp literal) args :test #'equal)))))
+;; (defun check-bindings (maxterms bindings)
+;;   "Evaluate whether bindings satisify the maxterms.
+;; Returns: (OR t nil)"
+;;   (assert (every #'maxterm-p maxterms))
+;;   (assert (every #'lit-p bindings))
+;;   (every (lambda (maxterm)
+;;            (some (lambda (arg)
+;;                    (find arg bindings :test #'equal))
+;;                  (cdr maxterm)))
+;;          maxterms))
 
-(defun dpll-bind (maxterms literal bindings)
-"Bind a literal in the maxterms list.
-Returns: (VALUES maxterms (CONS literal bindings))"
-  (assert (every #'maxterm-p maxterms))
-  (assert (lit-p literal))
-  (assert (every #'lit-p bindings))
-  (labels ((rec (new-terms rest)
-             (if rest
-                 (let ((new-term (maxterm-bind (car rest) literal)))
-                   (cond
-                     ((maxterm-false-p new-term)    ; short-circuit
-                      (values (list new-term) nil))
-                     ((eq t new-term)               ; cancel-out true term
-                      (rec new-terms (cdr rest)))
-                     (t                             ; add new term
-                      (rec (cons new-term new-terms)
-                           (cdr rest)))))
-                 ;; end of terms
-                 (values new-terms (cons literal bindings)))))
-    (rec nil maxterms)))
+;; (defun maxterm-bind (maxterm literal)
+;; "Bind a literal in maxterm.
+;; Returns: new-maxterm"
+;;   (assert (maxterm-p maxterm))
+;;   (assert (lit-p literal))
+;;   (let ((args (cdr maxterm)))
+;;     (or (some (lambda (x) (equal x literal)) args)
+;;         `(or ,@(remove (not-exp literal) args :test #'equal)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Part 1.a: Unit Propagation ;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; (defun dpll-bind (maxterms literal bindings)
+;; "Bind a literal in the maxterms list.
+;; Returns: (VALUES maxterms (CONS literal bindings))"
+;;   (assert (every #'maxterm-p maxterms))
+;;   (assert (lit-p literal))
+;;   (assert (every #'lit-p bindings))
+;;   (labels ((rec (new-terms rest)
+;;              (if rest
+;;                  (let ((new-term (maxterm-bind (car rest) literal)))
+;;                    (cond
+;;                      ((maxterm-false-p new-term)    ; short-circuit
+;;                       (values (list new-term) nil))
+;;                      ((eq t new-term)               ; cancel-out true term
+;;                       (rec new-terms (cdr rest)))
+;;                      (t                             ; add new term
+;;                       (rec (cons new-term new-terms)
+;;                            (cdr rest)))))
+;;                  ;; end of terms
+;;                  (values new-terms (cons literal bindings)))))
+;;     (rec nil maxterms)))
 
-(defun dpll-unit-propagate (maxterms bindings)
-"DPLL unit propogation.
-Returns: (VALUES maxterms (LIST bindings-literals...))"
-  (assert (every #'maxterm-p maxterms))
-  (assert (every #'lit-p bindings))
-  ;; HINT: use DPLL-BIND
-  (TODO 'dpll-unit-propagate))
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; ;;; Part 1.a: Unit Propagation ;;;
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; (defun dpll-unit-propagate (maxterms bindings)
+;; "DPLL unit propogation.
+;; Returns: (VALUES maxterms (LIST bindings-literals...))"
+;;   (assert (every #'maxterm-p maxterms))
+;;   (assert (every #'lit-p bindings))
+;;   ;; HINT: use DPLL-BIND
+;;   (TODO 'dpll-unit-propagate))
 
 
-(defun dpll-choose-literal (maxterms)
-  "Very simple implementation to choose a branching literal.
-RETURNS: a literal"
-  (assert (every #'maxterm-p maxterms))
-  (let ((term (cadar maxterms)))
-    (cond ((var-p term)
-           term)
-          ((not-p term)
-           (assert (var-p (second term)))
-           (second term))
-          (t
-           (error "Unrecognized thing: ~A" term)))))
+;; (defun dpll-choose-literal (maxterms)
+;;   "Very simple implementation to choose a branching literal.
+;; RETURNS: a literal"
+;;   (assert (every #'maxterm-p maxterms))
+;;   (let ((term (cadar maxterms)))
+;;     (cond ((var-p term)
+;;            term)
+;;           ((not-p term)
+;;            (assert (var-p (second term)))
+;;            (second term))
+;;           (t
+;;            (error "Unrecognized thing: ~A" term)))))
 
-;;;;;;;;;;;;;;;;;;;;;;
-;;; Part 1.b: DPLL ;;;
-;;;;;;;;;;;;;;;;;;;;;;
+;; ;;;;;;;;;;;;;;;;;;;;;;
+;; ;;; Part 1.b: DPLL ;;;
+;; ;;;;;;;;;;;;;;;;;;;;;;
 
-(defun dpll (maxterms bindings)
-"Recursive DPLL routine.
-Returns: (VALUES (OR T NIL) (LIST bindings-literals...))"
-  (assert (every #'maxterm-p maxterms))
-  (assert (every #'lit-p bindings))
-  (multiple-value-bind (maxterms bindings)
-      (dpll-unit-propagate maxterms bindings)
-    (cond
-      ((every #'maxterm-true-p maxterms) ; Base case: all maxterms canceled true, i.e., (AND)
-       (values t bindings))
-      ((some #'maxterm-false-p maxterms) ; Base case: some maxterm is false
-       (values nil bindings))
-      (t ; Recursive case
-       (TODO 'dpll)))))
+;; (defun dpll (maxterms bindings)
+;; "Recursive DPLL routine.
+;; Returns: (VALUES (OR T NIL) (LIST bindings-literals...))"
+;;   (assert (every #'maxterm-p maxterms))
+;;   (assert (every #'lit-p bindings))
+;;   (multiple-value-bind (maxterms bindings)
+;;       (dpll-unit-propagate maxterms bindings)
+;;     (cond
+;;       ((every #'maxterm-true-p maxterms) ; Base case: all maxterms canceled true, i.e., (AND)
+;;        (values t bindings))
+;;       ((some #'maxterm-false-p maxterms) ; Base case: some maxterm is false
+;;        (values nil bindings))
+;;       (t ; Recursive case
+;;        (TODO 'dpll)))))
 
-(defun sat-p (e)
-  "Check satisfiability of e."
-  (let ((maxterms (cdr (exp->cnf e))))
-    (multiple-value-bind (is-sat bindings)
-        (dpll maxterms nil)
-      ;; sanity checking
-      (when is-sat
-        (assert (check-bindings maxterms bindings)))
-      (values is-sat bindings))))
+;; (defun sat-p (e)
+;;   "Check satisfiability of e."
+;;   (let ((maxterms (cdr (exp->cnf e))))
+;;     (multiple-value-bind (is-sat bindings)
+;;         (dpll maxterms nil)
+;;       ;; sanity checking
+;;       (when is-sat
+;;         (assert (check-bindings maxterms bindings)))
+;;       (values is-sat bindings))))

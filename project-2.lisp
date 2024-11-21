@@ -379,106 +379,125 @@ That is: T"
   "Convert an expression to conjunctive normal form."
   (nnf->cnf (exp->nnf e)))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; ;;; Part 1: DAVIS-PUTNAM-LOGEMANN-LOVELAND (DPLL) ;;;
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Part 1: DAVIS-PUTNAM-LOGEMANN-LOVELAND (DPLL) ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; (defun check-bindings (maxterms bindings)
-;;   "Evaluate whether bindings satisify the maxterms.
-;; Returns: (OR t nil)"
-;;   (assert (every #'maxterm-p maxterms))
-;;   (assert (every #'lit-p bindings))
-;;   (every (lambda (maxterm)
-;;            (some (lambda (arg)
-;;                    (find arg bindings :test #'equal))
-;;                  (cdr maxterm)))
-;;          maxterms))
+(defun check-bindings (maxterms bindings)
+  "Evaluate whether bindings satisify the maxterms.
+Returns: (OR t nil)"
+  (assert (every #'maxterm-p maxterms))
+  (assert (every #'lit-p bindings))
+  (every (lambda (maxterm)
+           (some (lambda (arg)
+                   (find arg bindings :test #'equal))
+                 (cdr maxterm)))
+         maxterms))
 
-;; (defun maxterm-bind (maxterm literal)
-;; "Bind a literal in maxterm.
-;; Returns: new-maxterm"
-;;   (assert (maxterm-p maxterm))
-;;   (assert (lit-p literal))
-;;   (let ((args (cdr maxterm)))
-;;     (or (some (lambda (x) (equal x literal)) args)
-;;         `(or ,@(remove (not-exp literal) args :test #'equal)))))
+(defun maxterm-bind (maxterm literal)
+"Bind a literal in maxterm.
+Returns: new-maxterm"
+  (assert (maxterm-p maxterm))
+  (assert (lit-p literal))
+  (let ((args (cdr maxterm)))
+    (or (some (lambda (x) (equal x literal)) args)
+        `(or ,@(remove (not-exp literal) args :test #'equal)))))
 
-;; (defun dpll-bind (maxterms literal bindings)
-;; "Bind a literal in the maxterms list.
-;; Returns: (VALUES maxterms (CONS literal bindings))"
-;;   (assert (every #'maxterm-p maxterms))
-;;   (assert (lit-p literal))
-;;   (assert (every #'lit-p bindings))
-;;   (labels ((rec (new-terms rest)
-;;              (if rest
-;;                  (let ((new-term (maxterm-bind (car rest) literal)))
-;;                    (cond
-;;                      ((maxterm-false-p new-term)    ; short-circuit
-;;                       (values (list new-term) nil))
-;;                      ((eq t new-term)               ; cancel-out true term
-;;                       (rec new-terms (cdr rest)))
-;;                      (t                             ; add new term
-;;                       (rec (cons new-term new-terms)
-;;                            (cdr rest)))))
-;;                  ;; end of terms
-;;                  (values new-terms (cons literal bindings)))))
-;;     (rec nil maxterms)))
+(defun dpll-bind (maxterms literal bindings)
+"Bind a literal in the maxterms list.
+Returns: (VALUES maxterms (CONS literal bindings))"
+  (assert (every #'maxterm-p maxterms))
+  (assert (lit-p literal))
+  (assert (every #'lit-p bindings))
+  (labels ((rec (new-terms rest)
+             (if rest
+                 (let ((new-term (maxterm-bind (car rest) literal)))
+                   (cond
+                     ((maxterm-false-p new-term)    ; short-circuit
+                      (values (list new-term) nil))
+                     ((eq t new-term)               ; cancel-out true term
+                      (rec new-terms (cdr rest)))
+                     (t                             ; add new term
+                      (rec (cons new-term new-terms)
+                           (cdr rest)))))
+                 ;; end of terms
+                 (values new-terms (cons literal bindings)))))
+    (rec nil maxterms)))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; ;;; Part 1.a: Unit Propagation ;;;
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Part 1.a: Unit Propagation ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; (defun dpll-unit-propagate (maxterms bindings)
-;; "DPLL unit propogation.
-;; Returns: (VALUES maxterms (LIST bindings-literals...))"
-;;   (assert (every #'maxterm-p maxterms))
-;;   (assert (every #'lit-p bindings))
-;;   ;; HINT: use DPLL-BIND
-;;   (TODO 'dpll-unit-propagate))
+(defun find-literal (maxterms)
+    (if (null maxterms)
+        nil
+        (if (equal (length (car maxterms)) 2)
+            (car maxterms)
+            (find-literal (cdr maxterms))))
+)
+
+(defun propagate-recurse (input)
+    (dpll-unit-propagate (first input) (second input))
+)
+
+(defun dpll-unit-propagate (maxterms bindings)
+"DPLL unit propogation.
+Returns: (VALUES maxterms (LIST bindings-literals...))"
+  (assert (every #'maxterm-p maxterms))
+  (assert (every #'lit-p bindings))
+  ;; HINT: use DPLL-BIND
+  (if (null (find-literal maxterms))
+      (values maxterms bindings)
+      (propagate-recurse (multiple-value-list (dpll-bind maxterms (second (find-literal maxterms)) bindings))))
+)
 
 
-;; (defun dpll-choose-literal (maxterms)
-;;   "Very simple implementation to choose a branching literal.
-;; RETURNS: a literal"
-;;   (assert (every #'maxterm-p maxterms))
-;;   (let ((term (cadar maxterms)))
-;;     (cond ((var-p term)
-;;            term)
-;;           ((not-p term)
-;;            (assert (var-p (second term)))
-;;            (second term))
-;;           (t
-;;            (error "Unrecognized thing: ~A" term)))))
+(defun dpll-choose-literal (maxterms)
+  "Very simple implementation to choose a branching literal.
+RETURNS: a literal"
+  (assert (every #'maxterm-p maxterms))
+  (let ((term (cadar maxterms)))
+    (cond ((var-p term)
+           term)
+          ((not-p term)
+           (assert (var-p (second term)))
+           (second term))
+          (t
+           (error "Unrecognized thing: ~A" term)))))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;
-;; ;;; Part 1.b: DPLL ;;;
-;; ;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;
+;;; Part 1.b: DPLL ;;;
+;;;;;;;;;;;;;;;;;;;;;;
 
-;; (defun dpll (maxterms bindings)
-;; "Recursive DPLL routine.
-;; Returns: (VALUES (OR T NIL) (LIST bindings-literals...))"
-;;   (assert (every #'maxterm-p maxterms))
-;;   (assert (every #'lit-p bindings))
-;;   (multiple-value-bind (maxterms bindings)
-;;       (dpll-unit-propagate maxterms bindings)
-;;     (cond
-;;       ((every #'maxterm-true-p maxterms) ; Base case: all maxterms canceled true, i.e., (AND)
-;;        (values t bindings))
-;;       ((some #'maxterm-false-p maxterms) ; Base case: some maxterm is false
-;;        (values nil bindings))
-;;       (t ; Recursive case
-;;        (TODO 'dpll)))))
+(defun dpll (maxterms bindings)
+"Recursive DPLL routine.
+Returns: (VALUES (OR T NIL) (LIST bindings-literals...))"
+  (assert (every #'maxterm-p maxterms))
+  (assert (every #'lit-p bindings))
+  (multiple-value-bind (maxterms bindings)
+      (dpll-unit-propagate maxterms bindings)
+    (cond
+      ((every #'maxterm-true-p maxterms) ; Base case: all maxterms canceled true, i.e., (AND)
+       (values t bindings))
+      ((some #'maxterm-false-p maxterms) ; Base case: some maxterm is false
+       (values nil bindings))
+      (t ; Recursive case
+       (format t "TODO")
+      )
+    )
+  )
+)
 
-;; (defun sat-p (e)
-;;   "Check satisfiability of e."
-;;   (let ((maxterms (cdr (exp->cnf e))))
-;;     (multiple-value-bind (is-sat bindings)
-;;         (dpll maxterms nil)
-;;       ;; sanity checking
-;;       (when is-sat
-;;         (assert (check-bindings maxterms bindings)))
-;;       (values is-sat bindings))))
+(defun sat-p (e)
+  "Check satisfiability of e."
+  (let ((maxterms (cdr (exp->cnf e))))
+    (multiple-value-bind (is-sat bindings)
+        (dpll maxterms nil)
+      ;; sanity checking
+      (when is-sat
+        (assert (check-bindings maxterms bindings)))
+      (values is-sat bindings))))

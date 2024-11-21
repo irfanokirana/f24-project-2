@@ -106,8 +106,9 @@
 (print (equal '(and (or (not a) a b c d e f g h i j k) (or b a b c d e f g h i j k) )   (%dist-or-and-and '(and (or (not a)) (or b) ) '(and (or a b c d e f g h i j k))      )))
 (print (equal '(and (or a z (not d) i) (or a z e j) (or a z f (not k)) (or (not b) (not x) y (not d) i) (or (not b) (not x) y e j) (or (not b) (not x) y f (not k)) (or c (not d) i) (or c e j) (or c f (not k)) )   (%dist-or-and-and '(and (or a z) (or (not b) (not x) y) (or c))    '(and (or (not d) i) (or e j) (or f (not k)))      )))
 
-
-
+;; unit propagate
+(format t "~%unit propagate:")
+(print (equal '(((or (not a) (not b))  (or a (not b)) (or (not a) b)  (or a b) ) (e))     (multiple-value-list ( dpll-unit-propagate '((or e) (or a b) (or (not a) b) (or a (not b)) (or (not a) (not b))) '()   )))    )
 ;; DPLL
 ;; (format t "~%DPLL:")
 ;; (print (equal '(((or (not a) (not b))  (or a (not b)) (or (not a) b)  (or a b) ) (e))     (multiple-value-list ( dpll-unit-propagate '((or e) (or a b) (or (not a) b) (or a (not b)) (or (not a) (not b))) '()   )))    )

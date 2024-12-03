@@ -486,7 +486,12 @@ Returns: (VALUES (OR T NIL) (LIST bindings-literals...))"
       ((some #'maxterm-false-p maxterms) ; Base case: some maxterm is false
        (values nil bindings))
       (t ; Recursive case
-       (format t "TODO")
+       (let ((result (multiple-value-list (dpll (cons `(or ,(dpll-choose-literal maxterms)) maxterms) bindings))))
+        (if (first result)
+            (values (first result) (second result))
+            (dpll (cons `(or (not ,(dpll-choose-literal maxterms))) maxterms) bindings)
+        )
+       )
       )
     )
   )

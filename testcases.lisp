@@ -78,10 +78,10 @@
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; SAT ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; (format t "SAT~%")
-;; (sat-p '(and (not p0) (:iff p1 p3) (:iff p1 p3)))
-;; (sat-p '(and (not p2) (or p0 p0 p1) (not p2)))
-;; (sat-p '(:implies (:xor p3 p0) (not p2)))
+(format t "SAT~%")
+(sat-p '(and (not p0) (:iff p1 p3) (:iff p1 p3)))
+(sat-p '(and (not p2) (or p0 p0 p1) (not p2)))
+(sat-p '(:implies (:xor p3 p0) (not p2)))
 
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; OFFICE HOURS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -109,6 +109,10 @@
 ;; unit propagate
 (format t "~%unit propagate:")
 (print (equal '(((or (not a) (not b))  (or a (not b)) (or (not a) b)  (or a b) ) (e))     (multiple-value-list ( dpll-unit-propagate '((or e) (or a b) (or (not a) b) (or a (not b)) (or (not a) (not b))) '()   )))    )
+(print (equal '(((or (not a) (not b))  (or a (not b)) (or (not a) b)  (or a b) ) (e))     (multiple-value-list ( dpll-unit-propagate '((or e) (or a b) (or (not a) b) (or a (not b)) (or (not a) (not b))) '()   )))    )
+(format t "~%")
 ;; DPLL
-;; (format t "~%DPLL:")
-;; (print (equal '(((or (not a) (not b))  (or a (not b)) (or (not a) b)  (or a b) ) (e))     (multiple-value-list ( dpll-unit-propagate '((or e) (or a b) (or (not a) b) (or a (not b)) (or (not a) (not b))) '()   )))    )
+(format t "~%DPLL:")
+(print (equal    '(T (O Q P (NOT F) E (NOT G) (NOT D) H C I B J A K))     (multiple-value-list (sat-p '(and (and (and a b c (not d)) (and e (not f) (not g) h) (and i j k)) (or (and (not l) (not m) (not n)) (and o) (and (not p) q))   )   )) )                )
+(print (equal    '(nil ())     (multiple-value-list (sat-p '(and (or (and (or (not (not (or (and ( or (:iff a a))))))))) (and b c) (and (:xor d e) (or (and j (or (not (not (or (and (not j) k ( or (:implies x y))))))))))    )   )) )                )
+(format t "~%")

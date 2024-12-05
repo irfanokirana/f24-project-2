@@ -79,9 +79,9 @@
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; SAT ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (format t "SAT~%")
-(sat-p '(and (not p0) (:iff p1 p3) (:iff p1 p3)))
-(sat-p '(and (not p2) (or p0 p0 p1) (not p2)))
-(sat-p '(:implies (:xor p3 p0) (not p2)))
+(print (multiple-value-list (sat-p '(and (not p0) (:iff p1 p3) (:iff p1 p3)))))
+(print (multiple-value-list (sat-p '(and (not p2) (or p0 p0 p1) (not p2)))))
+(print (multiple-value-list (sat-p '(:implies (:xor p3 p0) (not p2)))))
 
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; OFFICE HOURS ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -116,3 +116,7 @@
 (print (equal    '(T (O Q P (NOT F) E (NOT G) (NOT D) H C I B J A K))     (multiple-value-list (sat-p '(and (and (and a b c (not d)) (and e (not f) (not g) h) (and i j k)) (or (and (not l) (not m) (not n)) (and o) (and (not p) q))   )   )) )                )
 (print (equal    '(nil ())     (multiple-value-list (sat-p '(and (or (and (or (not (not (or (and ( or (:iff a a))))))))) (and b c) (and (:xor d e) (or (and j (or (not (not (or (and (not j) k ( or (:implies x y))))))))))    )   )) )                )
 (format t "~%")
+
+
+(print (sat-p '(and p1_A_0 p2_A_0 p1_C_1 p2_C_1 p1_A_0 (not p1_B_1) (not p1_A_1) p1_B_1 p1_B_0 (not p1_A_1) (not p1_B_1) p1_A_1 (:iff p1_A_1 p1_A_0) (:iff p1_B_1 p1_B_0))))
+(print (sat-p '(and 1_A_0 1_B_2)))
